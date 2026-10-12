@@ -21,4 +21,13 @@ def test_fallback_parse_conditions():
 def test_build_search_query():
     parsed = fallback_parse("제주공항 근처 고기국수 맛집")
 
-    assert build_search_query(parsed, "ignored") == "제주공항 고기국수 근처"
+    assert build_search_query(parsed, "ignored") == "제주공항 고기국수"
+
+
+def test_fallback_parse_nearby_restaurants_without_food():
+    message = "양재역 근처 맛집을 찾아줘"
+    parsed = fallback_parse(message)
+
+    assert parsed.area == "양재역"
+    assert "근처" in parsed.conditions
+    assert build_search_query(parsed, message) == "양재역 맛집"

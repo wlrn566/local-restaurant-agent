@@ -1,6 +1,6 @@
 # Local Restaurant Agent
 
-지역과 음식 키워드를 입력하면 NAVER API HUB 지역 검색 결과를 바탕으로 맛집 후보를 추천하는 FastAPI 애플리케이션입니다. Ollama의 `qwen3.5:4b`는 사용자 문장 파싱과 추천 문장 생성에 사용합니다.
+지역과 음식 키워드를 입력하면 NAVER API HUB 검색 결과에서 맛집 후보를 보여주는 FastAPI 애플리케이션입니다. Ollama의 `qwen3.5:4b`가 켜져 있으면 사용자 요청 파싱과 추천 문장 생성에 사용하고, 꺼져 있으면 규칙 기반 파서와 기본 문장으로 계속 동작합니다.
 
 현재 구현은 복잡한 agent tool loop가 아니라, 동작이 예측 가능한 추천 파이프라인입니다.
 
@@ -19,12 +19,15 @@
 - `GET /`: 브라우저에서 바로 테스트할 수 있는 간단한 웹 UI
 - `GET /health`: 설정 상태 확인
 - `POST /api/recommend`: 맛집 추천 API
+- 채팅형 웹 UI: 대화는 왼쪽에 쌓이고 추천 식당은 오른쪽 목록에 표시
+- 예약 대화: 추천 식당 이름 선택 후 날짜·시간·인원 확인, 해당 식당의 네이버 지도 열기
 - Ollama 연결 실패 시 규칙 기반 fallback parser 사용
 - NAVER API HUB 지역 검색 연동
 - NAVER Maps Geocoding 키가 있으면 거리 점수 반영
 - 네이버 지도 URL은 업체명이 아니라 도로명 주소만 사용
 - 프롬프트/파싱/검색어/랭킹 로그 지원
-- 테스트 8개 통과
+
+예약 대화는 날짜·시간·인원을 모아 네이버 지도 링크로 안내하는 단계입니다. 예약 사이트와 연결해 예약을 제출하거나 예약을 확정하는 기능은 아직 없습니다.
 
 ## 설치
 
@@ -59,17 +62,18 @@ REQUEST_TIMEOUT_SECONDS=8
 LOG_PROMPTS=false
 ```
 
-필수 값:
+맛집 검색에 필요한 값:
 
 - `NAVER_API_HUB_CLIENT_ID`
 - `NAVER_API_HUB_CLIENT_SECRET`
-- `OLLAMA_BASE_URL`
-- `OLLAMA_MODEL`
 
 선택 값:
 
+- `OLLAMA_BASE_URL`, `OLLAMA_MODEL`: 로컬 Ollama 모델 사용. Ollama가 없어도 fallback으로 검색 가능
 - `NAVER_MAPS_CLIENT_ID`, `NAVER_MAPS_CLIENT_SECRET`: Geocoding으로 거리 점수를 더 정확히 계산할 때 사용
 - `LOG_PROMPTS=true`: Ollama에 전달되는 system/user 메시지와 응답을 터미널에 출력
+
+기존 설정과의 호환을 위해 검색 키는 `NAVER_API_HUB_CLIENT_ID/SECRET`을 우선 사용하며, 비어 있으면 `NAVER_MAPS_CLIENT_ID/SECRET`, 그 다음 `NAVER_CLIENT_ID/SECRET`을 검색 키로 사용합니다. NAVER Maps Geocoding은 `NAVER_MAPS_CLIENT_ID/SECRET`만 사용합니다.
 
 ## Ollama 실행
 
@@ -144,6 +148,18 @@ curl -X POST http://127.0.0.1:8000/api/recommend \
 }
 ```
 
+`POST /api/recommend`는 요청마다 독립적으로 동작하는 검색 API입니다. 채팅 UI의 대화 상태와 예약 정보 수집은 브라우저 안에서 관리하며 서버 세션이나 데이터베이스에는 저장하지 않습니다.
+
+## 웹 채팅 사용 흐름
+
+1. 지역과 음식 또는 조건을 입력합니다. 예: `양재역 근처 맛집`, `성수동 조용한 파스타`
+2. 검색 중 표시가 나온 뒤, 검색 결과가 오른쪽 목록에 표시되고 채팅에는 가게 이름이 번호 목록으로 나옵니다.
+3. 예약하려는 가게 이름 전체 또는 일부를 입력합니다. 이름이 겹쳐 여러 곳이 선택되면 정확한 이름을 다시 요청합니다.
+4. 예약 날짜, 시간, 인원을 입력합니다. 빠진 값이 있으면 필요한 항목을 다시 묻습니다.
+5. 입력한 예약 정보를 확인한 뒤 네이버 지도 링크를 엽니다. 실제 예약 가능 시간과 연락처 입력, 예약 제출은 네이버 지도에서 진행해야 합니다.
+
+예약 단계 중 새 지역이나 음식으로 다시 검색하면 새 추천 목록부터 같은 흐름을 시작합니다. 검색 결과가 없으면 채팅에서 결과가 없다고 안내하고 예약 단계로 넘어가지 않습니다.
+
 ## 로그 확인
 
 기본 로그:
@@ -215,4 +231,4 @@ API HUB 지역 검색용 키가 아니거나, API Gateway 헤더용 키가 잘�
 ## 추가 문서
 
 - [구조 문서](docs/ARCHITECTURE.md)
-- [추가 구현 후보](docs/ROADMAP.md)
+- [구현 현황과 다음 작업](docs/ROADMAP.md)

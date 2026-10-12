@@ -65,7 +65,8 @@ NOISE_WORDS = {
 
 
 def fallback_parse(message: str) -> ParsedQuery:
-    tokens = _tokenize(message)
+    cleaned_message = re.sub(r"맛집(?:을|이|은|는|도)?", " ", message)
+    tokens = _tokenize(cleaned_message)
     food = next((token for token in tokens if token in FOOD_WORDS), None)
     conditions = [token for token in tokens if token in CONDITION_WORDS and token != food]
 
@@ -86,8 +87,9 @@ def fallback_parse(message: str) -> ParsedQuery:
 
 
 def build_search_query(parsed: ParsedQuery, original_message: str) -> str:
-    parts = [parsed.area, parsed.food]
-    parts.extend(parsed.conditions[:2])
+    food = "맛집" if parsed.food in (None, "음식점") else parsed.food
+    parts = [parsed.area, food]
+    parts.extend(condition for condition in parsed.conditions if condition != "근처")
     query = " ".join(part for part in parts if part)
     if query:
         return query
